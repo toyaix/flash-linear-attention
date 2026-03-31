@@ -1,15 +1,14 @@
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
-
 import torch
 import triton
 import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices, prepare_chunk_offsets
 from fla.ops.utils.op import exp
-from fla.utils import autotune_cache_kwargs, is_nvidia_hopper, use_cuda_graph
+from fla.utils import IS_NVIDIA_HOPPER, USE_CUDA_GRAPH, autotune_cache_kwargs
 
-NUM_WARPS = [2, 4] if is_nvidia_hopper else [2, 4, 8, 16]
+NUM_WARPS = [2, 4] if IS_NVIDIA_HOPPER else [2, 4, 8, 16]
 
 
 @triton.heuristics({
@@ -27,7 +26,7 @@ NUM_WARPS = [2, 4] if is_nvidia_hopper else [2, 4, 8, 16]
         for BV in [32, 64]
     ],
     key=['H', 'K', 'V', 'BT', 'USE_G'],
-    use_cuda_graph=use_cuda_graph,
+    use_cuda_graph=USE_CUDA_GRAPH,
     **autotune_cache_kwargs,
 )
 @triton.jit(do_not_specialize=['T'])
@@ -206,7 +205,7 @@ def chunk_gated_delta_product_fwd_kernel_h_blockdim64(
         for BV in [64, 32]
     ],
     key=['H', 'K', 'V', 'BT', 'BV', 'USE_G'],
-    use_cuda_graph=use_cuda_graph,
+    use_cuda_graph=USE_CUDA_GRAPH,
     **autotune_cache_kwargs,
 )
 @triton.jit(do_not_specialize=['T'])
@@ -410,12 +409,14 @@ def chunk_gated_delta_product_fwd_h(
     save_new_value: bool = True,
     cu_seqlens: torch.LongTensor | None = None,
     num_householder: int = 1,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     B, T, H, K, V = *k.shape, u.shape[-1]
     assert T % num_householder == 0, "T must be divisible by num_householder"
     T_true = T // num_householder
     BT = chunk_size
-    chunk_indices = prepare_chunk_indices(cu_seqlens // num_householder, chunk_size) if cu_seqlens is not None else None
+    if chunk_indices is None and cu_seqlens is not None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens // num_householder, chunk_size)
     # N: the actual number of sequences in the batch with either equal or variable lengths
     if cu_seqlens is None:
         N, NT, chunk_offsets = B, triton.cdiv(T_true, BT), None
@@ -461,6 +462,7 @@ def chunk_gated_delta_product_bwd_dhu(
     scale: float,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,  # SY: remove this argument and force chunk size 64?
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     B, T, H, K, V = *q.shape, do.shape[-1]
 
@@ -468,7 +470,8 @@ def chunk_gated_delta_product_bwd_dhu(
     BT = 64
     assert K <= 256, "current kernel does not support head dimension being larger than 256."
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, chunk_size) if cu_seqlens is not None else None
+    if chunk_indices is None and cu_seqlens is not None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, chunk_size)
     if cu_seqlens is None:
         N, NT, chunk_offsets = B, triton.cdiv(T, BT), None
     else:

@@ -134,6 +134,7 @@ def chunk_gsa_fwd_k_kernel_intra(
     else:
         bos, eos = i_b * T, i_b * T + T
 
+    o_i = tl.arange(0, BC)
     o_v = i_v * BV + tl.arange(0, BV)
     m_v = o_v < V
 
@@ -161,7 +162,6 @@ def chunk_gsa_fwd_k_kernel_intra(
     b_g = tl.load(p_g, boundary_check=(0, 1))
     b_o *= exp(b_g - b_gn[None, :])
 
-    o_i = tl.arange(0, BC)
     o_A = (bos + i_t * BT + i_i * BC + tl.arange(0, BC)) * HQ*BT + i_hq * BT + i_i * BC
     m_A = (i_t * BT + i_i * BC + tl.arange(0, BC)) < T
     for j in range(0, min(BC, T - i_t * BT - i_i * BC)):
@@ -247,13 +247,13 @@ def chunk_gsa_bwd_k_kernel_dA(
         # [BC, BV]
         b_g = tl.load(p_g, boundary_check=(0, 1))
         b_do = tl.load(p_do, boundary_check=(0, 1))
-        b_do = (b_do * exp(b_g - b_gn[None, :]) * scale).to(b_do.dtype)
+        b_do = (b_do * exp(b_g - b_gn[None, :])).to(b_do.dtype)
         # [BV, BC]
         b_v = tl.load(p_v, boundary_check=(0, 1))
         b_gv = tl.load(p_gv, boundary_check=(0, 1))
         b_vg = (b_v * exp(b_gn[:, None] - b_gv)).to(b_v.dtype)
         # [BC, BC]
-        b_dA = tl.dot(b_do, b_vg)
+        b_dA = tl.dot(b_do, b_vg) * scale
     elif i_i == i_j:
         p_g = tl.make_block_ptr(g + (bos*H + i_h) * V, (T, V), (H*V, 1), (i_t*BT + i_i*BC, i_v*BV), (BC, BV), (1, 0))
         p_do = tl.make_block_ptr(do + (bos*HQ + i_hq) * V, (T, V), (HQ*V, 1), (i_t*BT + i_i*BC, i_v*BV), (BC, BV), (1, 0))
@@ -381,7 +381,7 @@ def chunk_gsa_bwd_k_kernel_dqkvg(
         b_h = tl.load(p_h, boundary_check=(0, 1))
         # [BT, BV]
         b_do = tl.load(p_do, boundary_check=(0, 1))
-        b_do = (b_do * exp(b_g) * scale).to(b_do.dtype)
+        b_do = (b_do * exp(b_g)).to(b_do.dtype)
         # [BK, BV]
         b_dh = tl.load(p_dh, boundary_check=(0, 1))
         # [BV]
@@ -389,7 +389,7 @@ def chunk_gsa_bwd_k_kernel_dqkvg(
 
         b_dh = b_dh.to(b_k.dtype)
         # [BT, BK]
-        b_dq += tl.dot(b_do, b_h.to(b_k.dtype))
+        b_dq += tl.dot(b_do, b_h.to(b_k.dtype)) * scale
         b_dk += tl.dot((b_v * b_gv).to(b_v.dtype), tl.trans(b_dh))
         # [BT, BV]
         b_dv = tl.dot(b_k, b_dh) * b_gv
@@ -452,6 +452,7 @@ def chunk_gsa_bwd_k_kernel_intra_dvg(
     else:
         bos, eos = i_b * T, i_b * T + T
 
+    o_i = tl.arange(0, BC)
     o_v = i_v * BV + tl.arange(0, BV)
     m_v = o_v < V
 
@@ -469,20 +470,19 @@ def chunk_gsa_bwd_k_kernel_intra_dvg(
         p_g = tl.make_block_ptr(g + (bos*H+i_h) * V, (T, V), (H*V, 1), (i_t * BT + i_j * BC, i_v * BV), (BC, BV), (1, 0))
         p_A = tl.make_block_ptr(A + (bos*HQ+i_hq) * BT, (BT, T), (1, HQ*BT), (i_i*BC, i_t*BT + i_j*BC), (BC, BC), (0, 1))
         p_do = tl.make_block_ptr(do + (bos*HQ+i_hq) * V, (T, V), (HQ*V, 1), (i_t*BT + i_j*BC, i_v*BV), (BC, BV), (1, 0))
+
+        m_j = (i_t * BT + i_j * BC + o_i) < T
         # [BC, BV]
         b_g = tl.load(p_g, boundary_check=(0, 1))
-        b_do = tl.load(p_do, boundary_check=(0, 1)) * exp(b_g - b_gn[None, :])
+        b_do = tl.load(p_do, boundary_check=(0, 1)) * tl.where(m_j[:, None], exp(b_g - b_gn[None, :]), 0)
         # [BC, BC]
         b_A = tl.load(p_A, boundary_check=(0, 1))
         # [BC, BV]
         b_dv += tl.dot(b_A, b_do.to(b_A.dtype))
     b_dv *= exp(b_gn[None, :] - b_gv)
 
-    o_i = tl.arange(0, BC)
-    o_c = i_i * BC + tl.arange(0, BC)
-
     p_g = g + (bos + i_t * BT + i_i * BC) * H*V + i_h * V + o_v
-    p_A = A + (bos + i_t*BT + i_i*BC) * HQ*BT + i_hq * BT + o_c
+    p_A = A + (bos + i_t*BT + i_i*BC) * HQ*BT + i_hq * BT + i_i * BC + o_i
     p_do = do + (bos + i_t*BT + i_i*BC) * HQ*V + i_hq * V + o_v
     for j in range(0, min(BC, T - i_t * BT - i_i * BC)):
         # [BC,]
@@ -522,6 +522,7 @@ def chunk_gsa_fwd_v(
     output_final_state: bool = False,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     _, A, h, ht, o = chunk_gla_fwd(
         q=q,
@@ -534,6 +535,7 @@ def chunk_gsa_fwd_v(
         output_final_state=output_final_state,
         cu_seqlens=cu_seqlens,
         chunk_size=chunk_size,
+        chunk_indices=chunk_indices,
     )
     return A, h, ht, o
 
@@ -548,6 +550,7 @@ def chunk_gsa_fwd_k(
     scale: float = 1.,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     B, T, H, K, V = *k.shape, v.shape[-1]
     BT = chunk_size
@@ -555,7 +558,8 @@ def chunk_gsa_fwd_k(
     BV = min(64, triton.next_power_of_2(V))
     HQ = q.shape[2]
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     NC = triton.cdiv(BT, BC)
     NG = HQ // H
@@ -631,6 +635,7 @@ def chunk_gsa_bwd_v(
     scale: float = 1.,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ):
     dq, dk, dv, dg, dh0 = chunk_gla_bwd(
         q=q,
@@ -646,6 +651,7 @@ def chunk_gsa_bwd_v(
         dht=dht,
         cu_seqlens=cu_seqlens,
         chunk_size=chunk_size,
+        chunk_indices=chunk_indices,
     )
     return dq, dk, dv, dg, dh0
 
@@ -664,6 +670,7 @@ def chunk_gsa_bwd_k(
     scale: float = 1.,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ):
     B, T, H, K, V = *k.shape, v.shape[-1]
     BT = chunk_size
@@ -672,7 +679,8 @@ def chunk_gsa_bwd_k(
     BV = min(64, triton.next_power_of_2(V))
     HQ = q.shape[2]
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     NC = triton.cdiv(BT, BC)
     NK = triton.cdiv(K, BK)
@@ -792,7 +800,7 @@ def chunk_gsa_bwd_k(
         num_warps=4,
         num_stages=2,
     )
-    dg = dgv.add_(chunk_local_cumsum(dg, chunk_size=BT, reverse=True, cu_seqlens=cu_seqlens))
+    dg = dgv.add_(chunk_local_cumsum(dg, chunk_size=BT, reverse=True, cu_seqlens=cu_seqlens, chunk_indices=chunk_indices))
 
     return dq, dk, dv, dg, dh0
 
@@ -808,6 +816,7 @@ def chunk_gsa_fwd(
     scale: float = 1.,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     hk0, hv0 = None, None
     if initial_state is not None:
@@ -822,6 +831,7 @@ def chunk_gsa_fwd(
         scale=scale,
         cu_seqlens=cu_seqlens,
         chunk_size=chunk_size,
+        chunk_indices=chunk_indices,
     )
 
     # p is kept in fp32 for safe softmax backward
@@ -838,6 +848,7 @@ def chunk_gsa_fwd(
         output_final_state=output_final_state,
         cu_seqlens=cu_seqlens,
         chunk_size=chunk_size,
+        chunk_indices=chunk_indices,
     )
     return Ak, hk, hkt, ok, p, Av, hv, hvt, ov
 
@@ -858,6 +869,7 @@ def chunk_gsa_bwd(
     dht: tuple[torch.Tensor, torch.Tensor],
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ):
     hk0, hv0 = None, None
     if initial_state is not None:
@@ -882,6 +894,7 @@ def chunk_gsa_bwd(
         scale=1.,
         cu_seqlens=cu_seqlens,
         chunk_size=chunk_size,
+        chunk_indices=chunk_indices,
     )
 
     # softmax gradient, equivalent to:
@@ -902,6 +915,7 @@ def chunk_gsa_bwd(
         scale=scale,
         cu_seqlens=cu_seqlens,
         chunk_size=chunk_size,
+        chunk_indices=chunk_indices,
     )
 
     ds = dsv.add_(dsk)
@@ -928,10 +942,14 @@ class ChunkGSAFunction(torch.autograd.Function):
         output_final_state: bool,
         checkpoint_level: int,
         cu_seqlens: torch.LongTensor | None,
+        cu_seqlens_cpu: torch.LongTensor | None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         chunk_size = min(64, max(16, triton.next_power_of_2(q.shape[1])))
 
-        g_org, g = g, chunk_local_cumsum(g, chunk_size, cu_seqlens=cu_seqlens)
+        chunk_indices = prepare_chunk_indices(
+            cu_seqlens, chunk_size, cu_seqlens_cpu=cu_seqlens_cpu) if cu_seqlens is not None else None
+
+        g_org, g = g, chunk_local_cumsum(g, chunk_size, cu_seqlens=cu_seqlens, chunk_indices=chunk_indices)
         Ak, hk, hkt, ok, p, Av, hv, hvt, ov = chunk_gsa_fwd(
             q=q,
             k=k,
@@ -943,6 +961,7 @@ class ChunkGSAFunction(torch.autograd.Function):
             scale=scale,
             cu_seqlens=cu_seqlens,
             chunk_size=chunk_size,
+            chunk_indices=chunk_indices,
         )
 
         if checkpoint_level >= 1:
@@ -955,7 +974,7 @@ class ChunkGSAFunction(torch.autograd.Function):
         else:
             hk0, hv0 = None, None
 
-        ctx.save_for_backward(q, k, v, s, g, ok, p, Av, hk0, hv0, hk, hv)
+        ctx.save_for_backward(q, k, v, s, g, ok, p, Av, hk0, hv0, hk, hv, chunk_indices)
         ctx.checkpoint_level = checkpoint_level
         ctx.scale = scale
         ctx.cu_seqlens = cu_seqlens
@@ -965,13 +984,13 @@ class ChunkGSAFunction(torch.autograd.Function):
     @staticmethod
     @input_guard
     def backward(ctx, dov, dhkt=None, dhvt=None):
-        q, k, v, s, g, ok, p, Av, hk0, hv0, hk, hv = ctx.saved_tensors
+        q, k, v, s, g, ok, p, Av, hk0, hv0, hk, hv, chunk_indices = ctx.saved_tensors
         scale = ctx.scale
         cu_seqlens = ctx.cu_seqlens
         chunk_size = ctx.chunk_size
 
         if ctx.checkpoint_level >= 1:
-            g = chunk_local_cumsum(g, chunk_size, cu_seqlens=cu_seqlens)
+            g = chunk_local_cumsum(g, chunk_size, cu_seqlens=cu_seqlens, chunk_indices=chunk_indices)
         dq, dk, dv, ds, dg, dhk0, dhv0 = chunk_gsa_bwd(
             q=q,
             k=k,
@@ -988,6 +1007,7 @@ class ChunkGSAFunction(torch.autograd.Function):
             dht=(dhkt, dhvt),
             cu_seqlens=cu_seqlens,
             chunk_size=chunk_size,
+            chunk_indices=chunk_indices,
         )
         return dq, dk, dv, ds, dg, None, dhk0, dhv0, None, None, None, None
 
@@ -1004,6 +1024,7 @@ def chunk_gsa(
     output_final_state: bool | None = False,
     checkpoint_level: int | None = 2,
     cu_seqlens: torch.LongTensor | None = None,
+    cu_seqlens_cpu: torch.LongTensor | None = None,
     head_first: bool | None = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     r"""
@@ -1129,5 +1150,6 @@ def chunk_gsa(
         output_final_state,
         checkpoint_level,
         cu_seqlens,
+        cu_seqlens_cpu,
     )
     return o, final_state

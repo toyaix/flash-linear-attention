@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange, repeat
 
+from fla.layers.utils import get_layer_cache, update_layer_cache
 from fla.modules import FusedRMSNormGated, RMSNorm, ShortConvolution
 from fla.modules.activations import ACT2FN
 from fla.ops.simple_gla import chunk_simple_gla, fused_recurrent_simple_gla
@@ -147,6 +148,7 @@ class SimpleGatedLinearAttention(nn.Module):
                 hidden_size=self.head_v_dim,
                 elementwise_affine=elementwise_affine,
                 eps=norm_eps,
+                dtype=torch.float32
             )
             self.gate_fn = ACT2FN[gate_fn]
         self.o_proj = nn.Linear(self.value_dim, hidden_size, bias=False)
@@ -172,9 +174,7 @@ class SimpleGatedLinearAttention(nn.Module):
         # launching the triton kernel for just one token will actually be slower
         mode = 'fused_recurrent' if hidden_states.shape[1] <= 64 else self.mode
 
-        last_state = None
-        if past_key_values is not None and len(past_key_values) > self.layer_idx:
-            last_state = past_key_values[self.layer_idx]
+        last_state = get_layer_cache(self, past_key_values)
 
         cu_seqlens = kwargs.get('cu_seqlens')
         if self.use_short_conv:
@@ -245,13 +245,13 @@ class SimpleGatedLinearAttention(nn.Module):
         else:
             raise NotImplementedError(f"Not supported mode `{mode}`.")
 
-        if past_key_values is not None:
-            past_key_values.update(
-                recurrent_state=recurrent_state,
-                conv_state=(conv_state_q, conv_state_k, conv_state_v) if self.use_short_conv else None,
-                layer_idx=self.layer_idx,
-                offset=q.shape[1],
-            )
+        update_layer_cache(
+            self,
+            past_key_values,
+            recurrent_state=recurrent_state,
+            conv_state=(conv_state_q, conv_state_k, conv_state_v) if self.use_short_conv else None,
+            offset=q.shape[1],
+        )
 
         g = self.g_proj(hidden_states)
         if self.fuse_norm_and_gate:

@@ -1,10 +1,12 @@
+# Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
+import os
 
 import pytest
 import torch
 from transformers.configuration_utils import PretrainedConfig
 
-from fla.utils import assert_close, device, is_intel_alchemist, is_nvidia_hopper
+from fla.utils import IS_INTEL_ALCHEMIST, IS_NVIDIA_HOPPER, assert_close, device
 
 from .test_modeling_utils import (
     GENERATION_UNSUPPORTED,
@@ -19,7 +21,7 @@ from .test_modeling_utils import (
 # BASE TEST FOR MODELING (FORWARD/BACKWARD PASS)
 # ===================================================================================
 @pytest.mark.skipif(
-    is_intel_alchemist,
+    IS_INTEL_ALCHEMIST,
     reason="Skipping test on Intel Alchemist due to known issues with SRAM.",
 )
 def run_test_model_forward_backward(
@@ -35,9 +37,9 @@ def run_test_model_forward_backward(
     """
     A foundational test for the forward and backward passes of a model.
     """
-    if not is_nvidia_hopper and D == 128:
+    if not IS_NVIDIA_HOPPER and D == 128:
         pytest.skip("D=128 is only tested on Hopper GPUs to save CI time.")
-    if not is_nvidia_hopper and config_class.__name__ in HOPPER_EXCLUSIVE:
+    if not IS_NVIDIA_HOPPER and config_class.__name__ in HOPPER_EXCLUSIVE:
         pytest.skip(f"{config_class.__name__} requires Hopper-specific features.")
     if config_class.__name__ in NOT_READY_FOR_TESTING:
         pytest.skip(f"{config_class.__name__} is not yet ready for testing.")
@@ -79,6 +81,7 @@ def run_test_generation(
     A foundational test for K/V cache-based generation.
     """
     torch.manual_seed(42)
+    os.environ['FLA_CONV_BACKEND'] = 'triton'
     if config_class.__name__ in GENERATION_UNSUPPORTED:
         pytest.skip(f"Generation test not supported for {config_class.__name__}.")
     if config_class.__name__ in NOT_READY_FOR_TESTING:

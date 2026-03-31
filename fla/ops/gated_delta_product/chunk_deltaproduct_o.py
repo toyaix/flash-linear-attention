@@ -1,16 +1,15 @@
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
-
 import torch
 import triton
 import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices
 from fla.ops.utils.op import exp
-from fla.utils import autotune_cache_kwargs, check_shared_mem, is_nvidia_hopper
+from fla.utils import IS_NVIDIA_HOPPER, autotune_cache_kwargs, check_shared_mem
 
 BKV_LIST = [64, 128] if check_shared_mem() else [32, 64]
-NUM_WARPS = [2, 4] if is_nvidia_hopper else [2, 4, 8]
+NUM_WARPS = [2, 4] if IS_NVIDIA_HOPPER else [2, 4, 8]
 
 
 @triton.heuristics({
@@ -125,11 +124,13 @@ def chunk_gated_delta_product_fwd_o(
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
     num_householder: int = 1,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> torch.Tensor:
     assert q.shape[1] * num_householder == k.shape[1], "q.shape[1] * num_householder must be equal to k.shape[1]"
     B, T, H, K, V = *q.shape, v.shape[-1]
     BT = chunk_size
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None and cu_seqlens is not None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT)
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     o = v.new_empty(B, T, H, V).fill_(-float('inf'))
     def grid(meta): return (triton.cdiv(V, meta['BV']), NT, B * H)

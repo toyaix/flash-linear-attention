@@ -1,23 +1,19 @@
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
-
 import torch
 import torch.nn as nn
 import triton
 import triton.language as tl
 
-from fla.utils import autotune_cache_kwargs, input_guard, is_amd
+from fla.utils import IS_AMD, autotune_cache_kwargs, input_guard
 
 BT_LIST = [8, 16, 32, 64, 128]
-NUM_WARPS_AUTOTUNE = [1, 2, 4, 8, 16] if is_amd else [1, 2, 4, 8, 16, 32]
+NUM_WARPS_AUTOTUNE = [1, 2, 4, 8, 16] if IS_AMD else [1, 2, 4, 8, 16, 32]
 
 
 @triton.autotune(
-    configs=[
-        triton.Config({}, num_warps=num_warps)
-        for num_warps in NUM_WARPS_AUTOTUNE
-    ],
-    key=['D'],
+    configs=[triton.Config({}, num_warps=num_warps) for num_warps in NUM_WARPS_AUTOTUNE],
+    key=["D"],
     **autotune_cache_kwargs,
 )
 @triton.jit
@@ -44,11 +40,8 @@ def l2norm_fwd_kernel1(
 
 
 @triton.autotune(
-    configs=[
-        triton.Config({}, num_warps=num_warps)
-        for num_warps in NUM_WARPS_AUTOTUNE
-    ],
-    key=['D'],
+    configs=[triton.Config({}, num_warps=num_warps) for num_warps in NUM_WARPS_AUTOTUNE],
+    key=["D"],
     **autotune_cache_kwargs,
 )
 @triton.jit
@@ -76,21 +69,17 @@ def l2norm_bwd_kernel1(
 
 
 @triton.autotune(
-    configs=[
-        triton.Config({'BT': BT}, num_warps=num_warps)
-        for num_warps in [1, 2, 4, 8, 16]
-        for BT in BT_LIST
-    ],
-    key=['D', 'NB'],
+    configs=[triton.Config({"BT": BT}, num_warps=num_warps) for num_warps in [1, 2, 4, 8, 16] for BT in BT_LIST],
+    key=["D", "NB"],
     **autotune_cache_kwargs,
 )
-@triton.jit
+@triton.jit(do_not_specialize=["T"])
 def l2norm_fwd_kernel(
     x,
     y,
     rstd,
     eps,
-    T: tl.constexpr,
+    T,
     D: tl.constexpr,
     BD: tl.constexpr,
     NB: tl.constexpr,
@@ -110,22 +99,18 @@ def l2norm_fwd_kernel(
 
 
 @triton.autotune(
-    configs=[
-        triton.Config({'BT': BT}, num_warps=num_warps)
-        for num_warps in [1, 2, 4, 8, 16]
-        for BT in BT_LIST
-    ],
-    key=['D', 'NB'],
+    configs=[triton.Config({"BT": BT}, num_warps=num_warps) for num_warps in [1, 2, 4, 8, 16] for BT in BT_LIST],
+    key=["D", "NB"],
     **autotune_cache_kwargs,
 )
-@triton.jit
+@triton.jit(do_not_specialize=["T"])
 def l2norm_bwd_kernel(
     y,
     rstd,
     dy,
     dx,
     eps,
-    T: tl.constexpr,
+    T,
     D: tl.constexpr,
     BD: tl.constexpr,
     NB: tl.constexpr,
@@ -166,8 +151,14 @@ def l2norm_fwd(
 
     rstd = torch.empty((T,), dtype=torch.float32, device=x.device)
     if D <= 512:
-        NB = triton.cdiv(T, 2048)
-        def grid(meta): return (triton.cdiv(T, meta['BT']), )
+        # NOTE(tylerr): Avoid excessive recompilation and autotuning by tolerating a larger range
+        # of T before recompiling the kernel.
+        # NB = triton.cdiv(T, 2048)
+        NB = triton.cdiv(T, 2048 * 32)
+
+        def grid(meta):
+            return (triton.cdiv(T, meta["BT"]),)
+
         l2norm_fwd_kernel[grid](
             x=x,
             y=y,
@@ -210,8 +201,14 @@ def l2norm_bwd(
         raise RuntimeError("This layer norm doesn't support feature dim >= 64KB.")
 
     if D <= 512:
-        NB = triton.cdiv(T, 2048)
-        def grid(meta): return (triton.cdiv(T, meta['BT']), )
+        # NOTE(tylerr): Avoid excessive recompilation and autotuning by tolerating a larger range
+        # of T before recompiling the kernel.
+        # NB = triton.cdiv(T, 2048)
+        NB = triton.cdiv(T, 2048 * 32)
+
+        def grid(meta):
+            return (triton.cdiv(T, meta["BT"]),)
+
         l2norm_bwd_kernel[grid](
             y=y,
             rstd=rstd,
@@ -238,7 +235,6 @@ def l2norm_bwd(
 
 
 class L2NormFunction(torch.autograd.Function):
-
     @staticmethod
     @input_guard
     def forward(
@@ -273,7 +269,6 @@ l2_norm = l2norm
 
 
 class L2Norm(nn.Module):
-
     def __init__(
         self,
         eps: float = 1e-6,

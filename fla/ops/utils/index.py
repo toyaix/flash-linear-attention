@@ -35,7 +35,7 @@ def prepare_position_ids_kernel(
 
 @tensor_cache
 def prepare_lens(cu_seqlens: torch.LongTensor) -> torch.LongTensor:
-    return cu_seqlens[1:] - cu_seqlens[:-1]
+    return torch.diff(cu_seqlens)
 
 
 @tensor_cache
@@ -57,13 +57,6 @@ def prepare_cu_seqlens_from_mask(
     dtype: torch.dtype | None = torch.int32,
 ) -> torch.LongTensor:
     return prepare_cu_seqlens_from_lens(prepare_lens_from_mask(mask), dtype)
-
-
-@tensor_cache
-def prepare_lens_from_cu_seqlens(
-    cu_seqlens: torch.LongTensor,
-) -> torch.LongTensor:
-    return cu_seqlens[1:] - cu_seqlens[:-1]
 
 
 @tensor_cache
@@ -92,7 +85,12 @@ def prepare_split_cu_seqlens(
 
 
 @tensor_cache
-def prepare_position_ids(cu_seqlens: torch.LongTensor) -> torch.LongTensor:
+def prepare_position_ids(cu_seqlens: torch.LongTensor, cu_seqlens_cpu: torch.LongTensor | None = None) -> torch.LongTensor:
+    if cu_seqlens_cpu is not None:
+        return torch.cat([
+            torch.arange(n, dtype=cu_seqlens.dtype, device=cu_seqlens.device)
+            for n in prepare_lens(cu_seqlens_cpu).unbind()
+        ])
     return torch.cat([
         torch.arange(n, dtype=cu_seqlens.dtype, device=cu_seqlens.device)
         for n in prepare_lens(cu_seqlens).unbind()
@@ -100,21 +98,26 @@ def prepare_position_ids(cu_seqlens: torch.LongTensor) -> torch.LongTensor:
 
 
 @tensor_cache
-def prepare_sequence_ids(cu_seqlens: torch.LongTensor) -> torch.LongTensor:
-    return prepare_position_ids(cu_seqlens).eq(0).cumsum(0) - 1
+def prepare_sequence_ids(cu_seqlens: torch.LongTensor, cu_seqlens_cpu: torch.LongTensor | None = None) -> torch.LongTensor:
+    return prepare_position_ids(cu_seqlens, cu_seqlens_cpu).eq(0).cumsum(0) - 1
 
 
 @tensor_cache
-def prepare_token_indices(cu_seqlens: torch.LongTensor) -> torch.LongTensor:
-    position_ids = prepare_position_ids(cu_seqlens)
-    return torch.stack([prepare_sequence_ids(cu_seqlens), position_ids], 1).to(cu_seqlens)
+def prepare_token_indices(cu_seqlens: torch.LongTensor, cu_seqlens_cpu: torch.LongTensor | None = None) -> torch.LongTensor:
+    position_ids = prepare_position_ids(cu_seqlens, cu_seqlens_cpu)
+    return torch.stack([prepare_sequence_ids(cu_seqlens, cu_seqlens_cpu), position_ids], 1).to(cu_seqlens)
 
 
 @tensor_cache
 def prepare_chunk_indices(
     cu_seqlens: torch.LongTensor,
     chunk_size: int,
+    cu_seqlens_cpu: torch.LongTensor | None = None,
 ) -> torch.LongTensor:
+    if cu_seqlens_cpu is not None:
+        indices = torch.cat([torch.arange(n, device=cu_seqlens.device)
+                            for n in triton.cdiv(prepare_lens(cu_seqlens_cpu), chunk_size).tolist()])
+        return torch.stack([indices.eq(0).cumsum(0) - 1, indices], 1).to(cu_seqlens)
     indices = torch.cat([torch.arange(n) for n in triton.cdiv(prepare_lens(cu_seqlens), chunk_size).tolist()])
     return torch.stack([indices.eq(0).cumsum(0) - 1, indices], 1).to(cu_seqlens)
 
@@ -124,9 +127,15 @@ def prepare_chunk_offsets(
     cu_seqlens: torch.LongTensor,
     chunk_size: int,
 ) -> torch.LongTensor:
-    return torch.cat([cu_seqlens.new_tensor([0]), triton.cdiv(prepare_lens(cu_seqlens), chunk_size)]).cumsum(-1)
+    return F.pad(triton.cdiv(prepare_lens(cu_seqlens), chunk_size), (1, 0), value=0).cumsum(-1)
 
 
 @tensor_cache
-def get_max_num_splits(cu_seqlens: torch.LongTensor, chunk_size: int) -> int:
+def get_max_num_splits(
+    cu_seqlens: torch.LongTensor,
+    chunk_size: int,
+    cu_seqlens_cpu: torch.LongTensor | None = None
+) -> int:
+    if cu_seqlens_cpu is not None:
+        return triton.cdiv(int(max(prepare_lens(cu_seqlens_cpu))), chunk_size)
     return triton.cdiv(int(max(prepare_lens(cu_seqlens))), chunk_size)

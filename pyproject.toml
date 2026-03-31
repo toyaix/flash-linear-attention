@@ -16,7 +16,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "torch",
+    "torch>=2.7.0",
     "transformers",
     "einops",
 ]
@@ -33,10 +33,6 @@ Repository = "https://github.com/fla-org/flash-linear-attention"
 [build-system]
 requires = ["setuptools>=45", "wheel"]
 
-[tool.ruff.lint.isort]
-known-first-party = ["fla"]
-force-sort-within-sections = false
-
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = "INFO"
@@ -48,8 +44,10 @@ pythonpath = [
 target-version = "py310"
 line-length = 127
 
-[tool.ruff.format]
-docstring-code-format = true
+
+[tool.autopep8]
+max-line-length = 127
+
 
 [tool.ruff.lint]
 select = [
@@ -61,7 +59,6 @@ select = [
     "I",    # isort
     "C4",   # flake8-comprehensions
     "TCH",  # flake8-type-checking
-    "COM",  # flake8-commas
     "T",    # flake8-debugger
 ]
 ignore = [
@@ -73,6 +70,7 @@ ignore = [
     "B008",
     "B028",
     "B904",
+    "B905",
     "C408",
     "C416",
     "C417",
@@ -83,7 +81,13 @@ ignore = [
     "SIM108",
     "SIM118",
     "SIM211",
+    "COM812",
 ]
+extend-select = ["RUF022"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["fla"]
+force-sort-within-sections = false
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
@@ -91,4 +95,4 @@ ignore = [
 "evals/harness.py" = ["I", "TCH"]
 "tests/*/*.py" = ["UP030"]
 "scripts/*.py" = ["C414"]
-"egacy/training/flame/*.py" = ["C408"]
+"legacy/training/flame/*.py" = ["C408"]

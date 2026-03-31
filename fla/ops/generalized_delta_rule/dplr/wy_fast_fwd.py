@@ -1,13 +1,12 @@
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
-
 import torch
 import triton
 import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices
 from fla.ops.utils.op import gather
-from fla.utils import autotune_cache_kwargs, is_gather_supported, use_cuda_graph
+from fla.utils import IS_GATHER_SUPPORTED, USE_CUDA_GRAPH, autotune_cache_kwargs
 
 
 @triton.heuristics({
@@ -19,7 +18,7 @@ from fla.utils import autotune_cache_kwargs, is_gather_supported, use_cuda_graph
         for num_warps in [1, 2, 4, 8, 16]
     ],
     key=['BT'],
-    use_cuda_graph=use_cuda_graph,
+    use_cuda_graph=USE_CUDA_GRAPH,
     **autotune_cache_kwargs,
 )
 @triton.jit(do_not_specialize=['T'])
@@ -65,7 +64,7 @@ def prepare_wy_repr_fwd_kernel_chunk32(
         for num_stages in [2, 3, 4]
     ],
     key=['BC'],
-    use_cuda_graph=use_cuda_graph,
+    use_cuda_graph=USE_CUDA_GRAPH,
     **autotune_cache_kwargs,
 )
 @triton.jit(do_not_specialize=['T'])
@@ -79,7 +78,7 @@ def prepare_wy_repr_fwd_kernel_chunk64(
     BT: tl.constexpr,
     BC: tl.constexpr,
     IS_VARLEN: tl.constexpr,
-    GATHER_SUPPORTED: tl.constexpr = is_gather_supported,
+    GATHER_SUPPORTED: tl.constexpr = IS_GATHER_SUPPORTED,
 ):
     i_t, i_bh = tl.program_id(0), tl.program_id(1)
     i_b, i_h = i_bh // H, i_bh % H
@@ -145,7 +144,7 @@ def prepare_wy_repr_fwd_kernel_chunk64(
         for num_stages in [2, 3, 4]
     ],
     key=['H', 'K', 'V', 'BT', 'BK', 'BV', 'IS_VARLEN'],
-    use_cuda_graph=use_cuda_graph,
+    use_cuda_graph=USE_CUDA_GRAPH,
     **autotune_cache_kwargs,
 )
 @triton.jit(do_not_specialize=['T'])
@@ -212,11 +211,13 @@ def wu_fwd(
     A_ab_inv: torch.Tensor,
     cu_seqlens: torch.LongTensor | None,
     chunk_size: int,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     B, T, H, K, V = *ag.shape, v.shape[-1]
     BT = chunk_size
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     BK = min(max(triton.next_power_of_2(K), 16), 64)
     BV = min(max(triton.next_power_of_2(V), 16), 64)
@@ -250,11 +251,13 @@ def prepare_wy_repr_fwd(
     A_ab: torch.Tensor,
     cu_seqlens: torch.LongTensor | None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     B, T, H, _ = ag.shape
     BT = chunk_size
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     BC = min(BT, 32)
     fwd_fn = prepare_wy_repr_fwd_kernel_chunk64 if BT == 64 else prepare_wy_repr_fwd_kernel_chunk32
@@ -276,6 +279,7 @@ def prepare_wy_repr_fwd(
         A_ab_inv=A_ab_inv,
         cu_seqlens=cu_seqlens,
         chunk_size=BT,
+        chunk_indices=chunk_indices,
     )
     return w, u, A_ab_inv
 

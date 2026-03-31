@@ -1,13 +1,38 @@
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
-
 import torch
 import triton
 import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices
-from fla.ops.utils.op import exp
-from fla.utils import autotune_cache_kwargs, check_shared_mem
+from fla.ops.utils.op import exp, exp2
+from fla.utils import IS_NVIDIA_BLACKWELL, autotune_cache_kwargs, check_shared_mem
+
+if IS_NVIDIA_BLACKWELL:
+    """
+    Compute tl.dot with SM100 workaround.
+
+    On SM100 (Blackwell) GPUs, wraps the result in inline assembly to prevent
+    the TritonGPUHoistTMEMAlloc pass from incorrectly fusing add and dot operations.
+    See: https://github.com/fla-org/flash-linear-attention/issues/638
+
+    TODO: Remove this workaround once the Triton compiler bug is fixed.
+    Track upstream issue at: https://github.com/triton-lang/triton/issues/8695
+    """
+    @triton.jit
+    def safe_dot(a, b):
+        return tl.inline_asm_elementwise(
+            asm="mov.f32 $0, $1;",
+            constraints="=r,r",
+            args=[tl.dot(a, b)],
+            dtype=tl.float32,
+            is_pure=True,
+            pack=1,
+        )
+else:
+    @triton.jit
+    def safe_dot(a, b):
+        return tl.dot(a, b)
 
 
 @triton.heuristics({
@@ -36,12 +61,14 @@ def recompute_w_u_fwd_kernel(
     chunk_indices,
     T,
     H: tl.constexpr,
+    Hq: tl.constexpr,
     K: tl.constexpr,
     V: tl.constexpr,
     BT: tl.constexpr,
     BK: tl.constexpr,
     BV: tl.constexpr,
     USE_G: tl.constexpr,
+    USE_EXP2: tl.constexpr,
     IS_VARLEN: tl.constexpr,
 ):
     i_t, i_bh = tl.program_id(0), tl.program_id(1)
@@ -68,10 +95,13 @@ def recompute_w_u_fwd_kernel(
 
     if USE_G:
         p_g = tl.make_block_ptr(g + (bos*H + i_h), (T,), (H,), (i_t * BT,), (BT,), (0,))
-        b_g = exp(tl.load(p_g, boundary_check=(0,)))
+        if USE_EXP2:
+            b_g = exp2(tl.load(p_g, boundary_check=(0,)))
+        else:
+            b_g = exp(tl.load(p_g, boundary_check=(0,)))
 
     for i_k in range(tl.cdiv(K, BK)):
-        p_k = tl.make_block_ptr(k + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+        p_k = tl.make_block_ptr(k + (bos*Hq + i_h // (H // Hq)) * K, (T, K), (Hq*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         p_w = tl.make_block_ptr(w + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         b_k = tl.load(p_k, boundary_check=(0, 1))
         b_kb = b_k * b_b[:, None]
@@ -111,12 +141,14 @@ def prepare_wy_repr_bwd_kernel(
     chunk_indices,
     T,
     H: tl.constexpr,
+    Hq: tl.constexpr,
     K: tl.constexpr,
     V: tl.constexpr,
     BT: tl.constexpr,
     BK: tl.constexpr,
     BV: tl.constexpr,
     USE_G: tl.constexpr,
+    USE_EXP2: tl.constexpr,
     IS_VARLEN: tl.constexpr,
 ):
     i_t, i_bh = tl.program_id(0), tl.program_id(1)
@@ -140,11 +172,14 @@ def prepare_wy_repr_bwd_kernel(
     if USE_G:
         p_g = tl.make_block_ptr(g + (bos*H + i_h), (T,), (H,), (i_t * BT,), (BT,), (0,))
         b_g = tl.load(p_g, boundary_check=(0,))
-        b_g_exp = tl.exp(b_g)
+        if USE_EXP2:
+            b_g_exp = exp2(b_g)
+        else:
+            b_g_exp = tl.exp(b_g)
         b_dg = tl.zeros([BT], dtype=tl.float32)
 
     for i_k in range(tl.cdiv(K, BK)):
-        p_k = tl.make_block_ptr(k + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+        p_k = tl.make_block_ptr(k + (bos*Hq + i_h // (H // Hq)) * K, (T, K), (Hq*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         p_dk = tl.make_block_ptr(dk + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         p_dw = tl.make_block_ptr(dw + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         # [BT, BK]
@@ -184,25 +219,32 @@ def prepare_wy_repr_bwd_kernel(
     b_dA = tl.dot(b_A, b_dA.to(b_A.dtype))
 
     if USE_G:
-        b_dA *= exp(b_g[:, None] - b_g[None, :])
-    b_dA = tl.where(m_A, -b_dA, 0)
+        if USE_EXP2:
+            b_dA *= exp2(b_g[:, None] - b_g[None, :])
+        else:
+            b_dA *= exp(b_g[:, None] - b_g[None, :])
 
-    b_dA = b_dA.to(k.dtype.element_ty)
     b_A = tl.zeros([BT, BT], dtype=tl.float32)
+    b_dA = tl.where(m_A, -b_dA, 0).to(k.dtype.element_ty)
+
+    tl.debug_barrier()
     for i_k in range(tl.cdiv(K, BK)):
-        p_k = tl.make_block_ptr(k + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
+        p_k = tl.make_block_ptr(k + (bos*Hq + i_h // (H // Hq)) * K, (T, K), (Hq*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         p_dk = tl.make_block_ptr(dk + (bos*H + i_h) * K, (T, K), (H*K, 1), (i_t * BT, i_k * BK), (BT, BK), (1, 0))
         b_k = tl.load(p_k, boundary_check=(0, 1))
-        b_dk = tl.load(p_dk, boundary_check=(0, 1))
-        b_kb = (b_k * b_b[:, None]).to(b_k.dtype)
-        b_A += tl.dot(b_kb, tl.trans(b_k))
+        b_kt = tl.trans(b_k)
+        b_kb = b_k * b_b[:, None]
+
+        b_A += tl.dot(b_k, b_kt)
         b_dkb = tl.dot(b_dA, b_k)
         b_db += tl.sum(b_dkb * b_k, 1)
-        b_dk += tl.dot(tl.trans(b_dA), b_kb)
-        b_dk += b_dkb * b_b[:, None]
+        b_dk = b_dkb * b_b[:, None] + tl.trans(tl.dot(tl.trans(b_kb).to(b_dA.dtype), b_dA))
+        b_dk += tl.load(p_dk, boundary_check=(0, 1))
+
         tl.store(p_dk, b_dk.to(p_dk.dtype.element_ty), boundary_check=(0, 1))
     tl.store(p_db, b_db.to(p_db.dtype.element_ty), boundary_check=(0,))
 
+    b_A *= b_b[:, None]
     if USE_G:
         b_AdA = b_dA * b_A
         p_dg = tl.make_block_ptr(dg + (bos*H + i_h), (T,), (H,), (i_t * BT,), (BT,), (0,))
@@ -217,16 +259,21 @@ def recompute_w_u_fwd(
     A: torch.Tensor,
     g: torch.Tensor | None = None,
     cu_seqlens: torch.LongTensor | None = None,
+    chunk_indices: torch.LongTensor | None = None,
+    use_exp2: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    B, T, H, K, V = *k.shape, v.shape[-1]
+    B, T, Hq, K = k.shape
+    V = v.shape[-1]
+    H = v.shape[2]
     BT = A.shape[-1]
     BK = 64
     BV = 64
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None and cu_seqlens is not None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT)
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
 
-    w = torch.empty_like(k)
+    w = k.new_empty(B, T, H, K)
     u = torch.empty_like(v)
     recompute_w_u_fwd_kernel[(NT, B*H)](
         k=k,
@@ -240,11 +287,13 @@ def recompute_w_u_fwd(
         chunk_indices=chunk_indices,
         T=T,
         H=H,
+        Hq=Hq,
         K=K,
         V=V,
         BT=BT,
         BK=BK,
         BV=BV,
+        USE_EXP2=use_exp2,
     )
     return w, u
 
@@ -258,16 +307,21 @@ def prepare_wy_repr_bwd(
     du: torch.Tensor,
     g: torch.Tensor = None,
     cu_seqlens: torch.LongTensor | None = None,
+    chunk_indices: torch.LongTensor | None = None,
+    use_exp2: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    B, T, H, K, V = *k.shape, v.shape[-1]
+    B, T, Hq, K = k.shape
+    V = v.shape[-1]
+    H = v.shape[2]
     BT = 64
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None and cu_seqlens is not None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT)
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
     CONST_TILING = 64 if check_shared_mem() else 32
     BK = min(max(triton.next_power_of_2(K), 16), CONST_TILING)
     BV = min(max(triton.next_power_of_2(V), 16), CONST_TILING)
 
-    dk = torch.empty_like(k)
+    dk = k.new_empty(B, T, H, K)
     dv = torch.empty_like(v)
     dg = torch.empty_like(g) if g is not None else None
     db = torch.empty_like(beta)
@@ -287,15 +341,18 @@ def prepare_wy_repr_bwd(
         chunk_indices=chunk_indices,
         T=T,
         H=H,
+        Hq=Hq,
         K=K,
         V=V,
         BT=BT,
         BK=BK,
         BV=BV,
+        USE_EXP2=use_exp2,
     )
+    if Hq != H:
+        dk = dk.view(B, T, Hq, H // Hq, K).sum(3)
     return dk, dv, db, dg
 
 
-bwd_prepare_wy_repr = prepare_wy_repr_bwd
-
 fwd_recompute_w_u = recompute_w_u_fwd
+bwd_prepare_wy_repr = prepare_wy_repr_bwd

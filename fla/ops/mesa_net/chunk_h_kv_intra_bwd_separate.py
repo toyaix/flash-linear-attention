@@ -6,9 +6,9 @@ import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices
 from fla.ops.utils.op import exp
-from fla.utils import autotune_cache_kwargs, is_nvidia_hopper
+from fla.utils import IS_NVIDIA_HOPPER, autotune_cache_kwargs
 
-NUM_WARPS = [2, 4] if is_nvidia_hopper else [2, 4, 8]
+NUM_WARPS = [2, 4] if IS_NVIDIA_HOPPER else [2, 4, 8]
 
 
 @triton.heuristics({
@@ -239,10 +239,12 @@ def chunk_mesa_net_h_kv_bwd_intra_separate_fn(
     do,
     cu_seqlens,
     chunk_size=64,
+    chunk_indices: torch.LongTensor | None = None,
 ):
     B, T, H, K, V = *k.shape, v.shape[-1]
     BT = chunk_size
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None and cu_seqlens is not None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT)
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
 
     BK = max(triton.next_power_of_2(K), 16)

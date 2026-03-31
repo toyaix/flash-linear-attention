@@ -1,33 +1,11 @@
-
+# Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
 import pytest
 import torch
-import torch.nn.functional as F
-from einops import rearrange, repeat
 
+from fla.ops.forgetting_attn import naive_forgetting_attn
 from fla.ops.forgetting_attn.parallel import parallel_forgetting_attn
-from fla.utils import assert_close, check_shared_mem, device, is_intel_alchemist
-
-
-def naive_forgetting_attn(
-    q: torch.Tensor,
-    k: torch.Tensor,
-    v: torch.Tensor,
-    g: torch.Tensor,
-    scale: float | None = None,
-):
-    _, T, HQ, D = q.shape
-    H = k.shape[2]
-    G = HQ // H
-    if scale is None:
-        scale = D ** -0.5
-    gc = g.float().cumsum(1)
-    mask = torch.tril(torch.ones((T, T), dtype=torch.bool, device=device))
-    ref = torch.einsum("bqhd,bkhd->bhqk", q.float() * scale, repeat(k, "b t h d -> b t (h g) d", g=G).float())
-    ref = ref + rearrange(gc, "b t h -> b h t 1") - rearrange(gc, "b t h -> b h 1 t")
-    ref = ref.masked_fill(~mask.unsqueeze(0).unsqueeze(0), -float('inf'))
-    ref = torch.einsum("bhqk,bkhd->bqhd", F.softmax(ref, dim=-1), repeat(v, "b t h d -> b t (h g) d", g=G).float())
-    return ref
+from fla.utils import IS_INTEL_ALCHEMIST, assert_close, check_shared_mem, device
 
 
 @pytest.mark.parametrize(
@@ -97,7 +75,7 @@ def test_parallel(
     ],
 )
 @pytest.mark.skipif(
-    is_intel_alchemist,
+    IS_INTEL_ALCHEMIST,
     reason="Intel Triton Failure",
 )
 def test_parallel_varlen(

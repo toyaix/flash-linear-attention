@@ -1,14 +1,13 @@
 # Copyright (c) 2023-2025, Songlin Yang, Yu Zhang
 
-
 import torch
 import triton
 import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices
-from fla.utils import autotune_cache_kwargs, check_shared_mem, is_amd, use_cuda_graph
+from fla.utils import IS_AMD, USE_CUDA_GRAPH, autotune_cache_kwargs, check_shared_mem
 
-NUM_WARPS_AUTOTUNE = [2, 4, 8, 16] if is_amd else [2, 4, 8, 16, 32]
+NUM_WARPS_AUTOTUNE = [2, 4, 8, 16] if IS_AMD else [2, 4, 8, 16, 32]
 
 BK_LIST = [32, 64, 128] if check_shared_mem() else [16, 32]
 
@@ -25,7 +24,7 @@ BK_LIST = [32, 64, 128] if check_shared_mem() else [16, 32]
         for num_stages in [2, 3, 4]
     ],
     key=['BT'],
-    use_cuda_graph=use_cuda_graph,
+    use_cuda_graph=USE_CUDA_GRAPH,
     **autotune_cache_kwargs,
 )
 @triton.jit(do_not_specialize=['T'])
@@ -96,11 +95,13 @@ def chunk_dplr_fwd_o(
     h: torch.Tensor,
     cu_seqlens: torch.LongTensor | None = None,
     chunk_size: int = 64,
+    chunk_indices: torch.LongTensor | None = None,
 ) -> torch.Tensor:
     B, T, H, K, V = *qg.shape, v.shape[-1]
     BT = chunk_size
 
-    chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
+    if chunk_indices is None:
+        chunk_indices = prepare_chunk_indices(cu_seqlens, BT) if cu_seqlens is not None else None
     NT = triton.cdiv(T, BT) if cu_seqlens is None else len(chunk_indices)
 
     o = torch.empty_like(v)
