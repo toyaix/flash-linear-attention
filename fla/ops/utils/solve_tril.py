@@ -6,6 +6,7 @@ import torch
 import triton
 import triton.language as tl
 
+from fla.ops.utils.cache import fla_cache_autotune
 from fla.ops.utils.index import prepare_chunk_indices
 from fla.ops.utils.op import make_tensor_descriptor
 from fla.utils import autotune_cache_kwargs, input_guard, is_amd, is_tma_supported
@@ -171,7 +172,7 @@ def merge_16x16_to_32x32_inverse_kernel(
 @triton.heuristics({
     'IS_VARLEN': lambda args: args['cu_seqlens'] is not None,
 })
-@triton.autotune(
+@fla_cache_autotune(
     configs=[
         triton.Config({}, num_warps=num_warps, num_stages=num_stages)
         for num_warps in [2, 4, 8]

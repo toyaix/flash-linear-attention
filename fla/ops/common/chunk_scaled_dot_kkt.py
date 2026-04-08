@@ -6,6 +6,7 @@ import triton
 import triton.language as tl
 
 from fla.ops.utils import prepare_chunk_indices
+from fla.ops.utils.cache import fla_cache_autotune
 from fla.ops.utils.op import exp
 from fla.utils import autotune_cache_kwargs
 
@@ -14,7 +15,7 @@ from fla.utils import autotune_cache_kwargs
     'USE_G': lambda args: args['g'] is not None,
     'IS_VARLEN': lambda args: args['cu_seqlens'] is not None,
 })
-@triton.autotune(
+@fla_cache_autotune(
     configs=[
         triton.Config({'BK': BK}, num_warps=num_warps, num_stages=num_stages)
         for BK in [32, 64, 128]
