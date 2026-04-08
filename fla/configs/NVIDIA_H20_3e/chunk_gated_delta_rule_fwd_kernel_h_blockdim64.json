@@ -1,0 +1,211 @@
+{
+  "kernel_name": "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+  "triton_version": "3.5.0",
+  "default_config": {
+    "kwargs": {
+      "BV": 32
+    },
+    "num_warps": 4,
+    "num_ctas": 1,
+    "num_stages": 4
+  },
+  "autotune_entries": {
+    "17c8600e7356593523a3882b285feacf": {
+      "autotune_key": [
+        4,
+        128,
+        128,
+        64,
+        true,
+        false,
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.float32",
+        "torch.bfloat16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 4,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.05097600072622299,
+        0.05056000128388405,
+        0.05161599814891815
+      ]
+    },
+    "bbc9658964722de964474823f7b1b1f7": {
+      "autotune_key": [
+        4,
+        128,
+        128,
+        64,
+        true,
+        false,
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.float32",
+        "torch.bfloat16",
+        "torch.float32",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 4,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.05145600065588951,
+        0.05104000121355057,
+        0.052000001072883606
+      ]
+    },
+    "96eabe58eeec1a9e6a122111e63adf40": {
+      "autotune_key": [
+        4,
+        100,
+        100,
+        64,
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float32",
+        "torch.float16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 2,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.04848000034689903,
+        0.04806400090456009,
+        0.048928000032901764
+      ]
+    },
+    "949a1bf32d5505dcf9d336f1d3732328": {
+      "autotune_key": [
+        4,
+        100,
+        100,
+        64,
+        true,
+        false,
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float32",
+        "torch.float16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 2,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.04841599985957146,
+        0.04800000041723251,
+        0.048870399594306946
+      ]
+    },
+    "402058641252930300dbcc694c782617": {
+      "autotune_key": [
+        4,
+        100,
+        100,
+        64,
+        true,
+        false,
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float32",
+        "torch.float16",
+        "torch.float32",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.04742399975657463,
+        0.04707200080156326,
+        0.04779519885778427
+      ]
+    },
+    "51ff639fdab664eed7d3f4a4c04ae0f3": {
+      "autotune_key": [
+        4,
+        100,
+        100,
+        64,
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float32",
+        "torch.float16",
+        "torch.float32",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.05020799860358238,
+        0.0498879998922348,
+        0.05049600079655647
+      ]
+    }
+  }
+}

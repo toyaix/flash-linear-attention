@@ -1,0 +1,39 @@
+'sync cache autotune code'
+{
+  "kernel_name": "chunk_gated_delta_rule_fwd_kernel_h_blockdim64",
+  "autotune_entries": {
+    "949a1bf32d5505dcf9d336f1d3732328": {
+      "autotune_key": [
+        4,
+        100,
+        100,
+        64,
+        true,
+        false,
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float32",
+        "torch.float16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BV": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.04915200173854828,
+        0.0488319993019104,
+        0.049536000937223434
+      ]
+    }
+  }
+}

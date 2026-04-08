@@ -1,0 +1,37 @@
+{
+  "kernel_name": "recompute_w_u_fwd_kernel",
+  "autotune_entries": {
+    "61112b49e88260026d4732b46939c763": {
+      "autotune_key": [
+        4,
+        100,
+        100,
+        64,
+        64,
+        64,
+        false,
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {},
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 4,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.011231999844312668,
+        0.010912000201642513,
+        0.01142400037497282
+      ]
+    }
+  }
+}

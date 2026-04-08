@@ -1,0 +1,40 @@
+{
+  "kernel_name": "l2norm_bwd_kernel",
+  "triton_version": "3.6.0",
+  "default_config": {
+    "kwargs": {
+      "BT": 8
+    },
+    "num_warps": 4,
+    "num_ctas": 1,
+    "num_stages": 3
+  },
+  "autotune_entries": {
+    "f8d7ac90cd68a4a9576f8be504493d38": {
+      "autotune_key": [
+        128,
+        1,
+        "torch.bfloat16",
+        "torch.float32",
+        "torch.bfloat16",
+        "torch.bfloat16"
+      ],
+      "config": {
+        "kwargs": {
+          "BT": 8
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.008448000065982342,
+        0.008128000423312187,
+        0.008671999908983707
+      ]
+    }
+  }
+}

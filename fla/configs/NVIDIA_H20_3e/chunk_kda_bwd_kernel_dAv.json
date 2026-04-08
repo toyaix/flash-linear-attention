@@ -1,0 +1,43 @@
+{
+  "kernel_name": "chunk_kda_bwd_kernel_dAv",
+  "triton_version": "3.6.0",
+  "default_config": {
+    "kwargs": {},
+    "num_warps": 4,
+    "num_ctas": 1,
+    "num_stages": 2
+  },
+  "autotune_entries": {
+    "bc7d21bc1b4b63a7cec6d8429162d293": {
+      "autotune_key": [
+        4,
+        128,
+        128,
+        64,
+        128,
+        128,
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {},
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 2,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.014175999909639359,
+        0.013856000266969204,
+        0.014431999996304512
+      ]
+    }
+  }
+}

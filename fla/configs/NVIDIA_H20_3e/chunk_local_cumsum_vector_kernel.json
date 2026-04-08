@@ -1,0 +1,70 @@
+{
+  "kernel_name": "chunk_local_cumsum_vector_kernel",
+  "triton_version": "3.6.0",
+  "default_config": {
+    "kwargs": {
+      "BS": 32
+    },
+    "num_warps": 2,
+    "num_ctas": 1,
+    "num_stages": 3
+  },
+  "autotune_entries": {
+    "a2309dcc5236b0327cf06731afba9abb": {
+      "autotune_key": [
+        2,
+        4,
+        128,
+        64,
+        false,
+        true,
+        "torch.float32",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BS": 32
+        },
+        "num_warps": 2,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.012927999719977379,
+        0.012703999876976013,
+        0.013088000006973743
+      ]
+    },
+    "5cd9e669ee98461caaaee148ff80c7bb": {
+      "autotune_key": [
+        2,
+        4,
+        128,
+        64,
+        false,
+        false,
+        "torch.float32",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BS": 32
+        },
+        "num_warps": 2,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.009503999724984169,
+        0.009119999594986439,
+        0.009696000255644321
+      ]
+    }
+  }
+}

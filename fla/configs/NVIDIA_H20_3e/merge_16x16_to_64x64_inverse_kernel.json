@@ -1,0 +1,35 @@
+{
+  "kernel_name": "merge_16x16_to_64x64_inverse_kernel",
+  "triton_version": "3.5.0",
+  "default_config": {
+    "kwargs": {},
+    "num_warps": 8,
+    "num_ctas": 1,
+    "num_stages": 4
+  },
+  "autotune_entries": {
+    "452f69e73a4b689d274727314e9efc27": {
+      "autotune_key": [
+        4,
+        64,
+        false,
+        "torch.float32",
+        "torch.float16"
+      ],
+      "config": {
+        "kwargs": {},
+        "num_warps": 8,
+        "num_ctas": 1,
+        "num_stages": 4,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.0191040001809597,
+        0.018848000094294548,
+        0.019360000267624855
+      ]
+    }
+  }
+}

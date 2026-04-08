@@ -1,0 +1,42 @@
+{
+  "kernel_name": "chunk_scaled_dot_kkt_fwd_kernel",
+  "triton_version": "3.5.0",
+  "default_config": {
+    "kwargs": {
+      "BK": 32
+    },
+    "num_warps": 8,
+    "num_ctas": 1,
+    "num_stages": 4
+  },
+  "autotune_entries": {
+    "2167952504e0aed98282bc13309d99df": {
+      "autotune_key": [
+        4,
+        100,
+        64,
+        false,
+        "torch.float16",
+        "torch.float32",
+        "torch.float16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BK": 32
+        },
+        "num_warps": 8,
+        "num_ctas": 1,
+        "num_stages": 4,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.00825599953532219,
+        0.007935999892652035,
+        0.00848000030964613
+      ]
+    }
+  }
+}

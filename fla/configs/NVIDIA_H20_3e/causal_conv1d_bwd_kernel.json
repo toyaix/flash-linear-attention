@@ -1,0 +1,43 @@
+{
+  "kernel_name": "causal_conv1d_bwd_kernel",
+  "triton_version": "3.6.0",
+  "default_config": {
+    "kwargs": {
+      "BD": 32
+    },
+    "num_warps": 4,
+    "num_ctas": 1,
+    "num_stages": 3
+  },
+  "autotune_entries": {
+    "d3fcb49bb97ac7d655ea2677e9dc4feb": {
+      "autotune_key": [
+        4096,
+        4,
+        8,
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.bfloat16",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {
+          "BD": 32
+        },
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.4116159975528717,
+        0.411327987909317,
+        0.4120959937572479
+      ]
+    }
+  }
+}
