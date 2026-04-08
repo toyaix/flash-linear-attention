@@ -1,11 +1,11 @@
 {
   "kernel_name": "chunk_bwd_kernel_dv_local",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {},
     "num_warps": 4,
     "num_ctas": 1,
-    "num_stages": 2
+    "num_stages": 3
   },
   "autotune_entries": {
     "ce2da570c41ea23ed008757f4924269d": {
@@ -27,15 +27,15 @@
         "kwargs": {},
         "num_warps": 4,
         "num_ctas": 1,
-        "num_stages": 2,
+        "num_stages": 4,
         "maxnreg": null,
         "pre_hook": null,
         "ir_override": null
       },
       "best_timing": [
-        0.010304000228643417,
-        0.010015999898314476,
-        0.010495999827980995
+        0.011935999616980553,
+        0.011776000261306763,
+        0.012128000147640705
       ]
     }
   }

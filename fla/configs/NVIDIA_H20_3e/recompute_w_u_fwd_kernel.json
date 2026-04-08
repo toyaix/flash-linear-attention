@@ -1,11 +1,11 @@
 {
   "kernel_name": "recompute_w_u_fwd_kernel",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {},
-    "num_warps": 4,
+    "num_warps": 8,
     "num_ctas": 1,
-    "num_stages": 3
+    "num_stages": 4
   },
   "autotune_entries": {
     "61112b49e88260026d4732b46939c763": {
@@ -27,7 +27,7 @@
       ],
       "config": {
         "kwargs": {},
-        "num_warps": 4,
+        "num_warps": 8,
         "num_ctas": 1,
         "num_stages": 3,
         "maxnreg": null,
@@ -35,9 +35,9 @@
         "ir_override": null
       },
       "best_timing": [
-        0.011487999930977821,
-        0.011136000044643879,
-        0.011680000461637974
+        0.01158399973064661,
+        0.011296000331640244,
+        0.011839999817311764
       ]
     }
   }

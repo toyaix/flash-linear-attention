@@ -1,6 +1,6 @@
 {
   "kernel_name": "prepare_wy_repr_bwd_kernel",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {},
     "num_warps": 4,
@@ -40,8 +40,8 @@
       },
       "best_timing": [
         0.023391999304294586,
-        0.023104000836610794,
-        0.023679999634623528
+        0.023135999217629433,
+        0.02364799939095974
       ]
     }
   }

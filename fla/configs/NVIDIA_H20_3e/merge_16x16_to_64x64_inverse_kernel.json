@@ -1,9 +1,9 @@
 {
   "kernel_name": "merge_16x16_to_64x64_inverse_kernel",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {},
-    "num_warps": 8,
+    "num_warps": 4,
     "num_ctas": 1,
     "num_stages": 4
   },
@@ -20,15 +20,15 @@
         "kwargs": {},
         "num_warps": 8,
         "num_ctas": 1,
-        "num_stages": 4,
+        "num_stages": 3,
         "maxnreg": null,
         "pre_hook": null,
         "ir_override": null
       },
       "best_timing": [
-        0.0191040001809597,
-        0.018848000094294548,
-        0.019360000267624855
+        0.019007999449968338,
+        0.018719999119639397,
+        0.019231999292969704
       ]
     }
   }

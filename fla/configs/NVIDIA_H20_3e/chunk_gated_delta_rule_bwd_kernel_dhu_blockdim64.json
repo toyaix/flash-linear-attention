@@ -1,89 +1,15 @@
 {
   "kernel_name": "chunk_gated_delta_rule_bwd_kernel_dhu_blockdim64",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {
       "BV": 32
     },
     "num_warps": 4,
     "num_ctas": 1,
-    "num_stages": 3
+    "num_stages": 2
   },
   "autotune_entries": {
-    "01edc7751e0a47359bbbaca7f6532b0c": {
-      "autotune_key": [
-        4,
-        128,
-        128,
-        64,
-        false,
-        true,
-        false,
-        "torch.bfloat16",
-        "torch.bfloat16",
-        "torch.bfloat16",
-        "torch.float32",
-        "torch.float32",
-        "torch.float32",
-        "torch.bfloat16",
-        "torch.bfloat16",
-        "torch.bfloat16",
-        "torch.bfloat16"
-      ],
-      "config": {
-        "kwargs": {
-          "BV": 32
-        },
-        "num_warps": 4,
-        "num_ctas": 1,
-        "num_stages": 3,
-        "maxnreg": null,
-        "pre_hook": null,
-        "ir_override": null
-      },
-      "best_timing": [
-        0.051392000168561935,
-        0.05113599821925163,
-        0.05215999856591225
-      ]
-    },
-    "1f8c5b2de9f1dfc2d32a99ccba2a3d0c": {
-      "autotune_key": [
-        4,
-        100,
-        100,
-        64,
-        true,
-        true,
-        false,
-        "torch.float16",
-        "torch.float16",
-        "torch.float16",
-        "torch.float32",
-        "torch.float32",
-        "torch.float32",
-        "torch.float16",
-        "torch.float16",
-        "torch.float16",
-        "torch.float16"
-      ],
-      "config": {
-        "kwargs": {
-          "BV": 32
-        },
-        "num_warps": 4,
-        "num_ctas": 1,
-        "num_stages": 2,
-        "maxnreg": null,
-        "pre_hook": null,
-        "ir_override": null
-      },
-      "best_timing": [
-        0.08489599823951721,
-        0.08441600203514099,
-        0.08537600189447403
-      ]
-    },
     "0f550cada136567cd59e975cc52c576d": {
       "autotune_key": [
         4,
@@ -114,9 +40,9 @@
         "ir_override": null
       },
       "best_timing": [
-        0.09017600119113922,
-        0.08956799656152725,
-        0.09081599861383438
+        0.08950400352478027,
+        0.08899199962615967,
+        0.09008000046014786
       ]
     }
   }

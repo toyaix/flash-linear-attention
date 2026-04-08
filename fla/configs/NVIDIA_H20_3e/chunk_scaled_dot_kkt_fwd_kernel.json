@@ -1,13 +1,13 @@
 {
   "kernel_name": "chunk_scaled_dot_kkt_fwd_kernel",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {
-      "BK": 32
+      "BK": 128
     },
     "num_warps": 8,
     "num_ctas": 1,
-    "num_stages": 4
+    "num_stages": 2
   },
   "autotune_entries": {
     "2167952504e0aed98282bc13309d99df": {
@@ -23,19 +23,19 @@
       ],
       "config": {
         "kwargs": {
-          "BK": 32
+          "BK": 128
         },
         "num_warps": 8,
         "num_ctas": 1,
-        "num_stages": 4,
+        "num_stages": 3,
         "maxnreg": null,
         "pre_hook": null,
         "ir_override": null
       },
       "best_timing": [
-        0.00825599953532219,
-        0.007935999892652035,
-        0.00848000030964613
+        0.00863999966531992,
+        0.008383999578654766,
+        0.008927999995648861
       ]
     }
   }

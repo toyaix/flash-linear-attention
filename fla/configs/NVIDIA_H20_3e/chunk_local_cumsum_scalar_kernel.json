@@ -1,13 +1,38 @@
 {
   "kernel_name": "chunk_local_cumsum_scalar_kernel",
-  "triton_version": "3.5.0",
+  "triton_version": "3.4.0",
   "default_config": {
     "kwargs": {},
-    "num_warps": 2,
+    "num_warps": 1,
     "num_ctas": 1,
     "num_stages": 3
   },
   "autotune_entries": {
+    "704524896cd28edb1ba8181e2302afdc": {
+      "autotune_key": [
+        1,
+        4,
+        64,
+        false,
+        true,
+        "torch.float32",
+        "torch.float32"
+      ],
+      "config": {
+        "kwargs": {},
+        "num_warps": 4,
+        "num_ctas": 1,
+        "num_stages": 3,
+        "maxnreg": null,
+        "pre_hook": null,
+        "ir_override": null
+      },
+      "best_timing": [
+        0.005696000065654516,
+        0.005439999978989363,
+        0.005919999908655882
+      ]
+    },
     "4e13ca8380546152dc4b4347f13bedd1": {
       "autotune_key": [
         1,
@@ -28,34 +53,9 @@
         "ir_override": null
       },
       "best_timing": [
-        0.005439999978989363,
-        0.005216000135987997,
-        0.005696000065654516
-      ]
-    },
-    "704524896cd28edb1ba8181e2302afdc": {
-      "autotune_key": [
-        1,
-        4,
-        64,
-        false,
-        true,
-        "torch.float32",
-        "torch.float32"
-      ],
-      "config": {
-        "kwargs": {},
-        "num_warps": 1,
-        "num_ctas": 1,
-        "num_stages": 3,
-        "maxnreg": null,
-        "pre_hook": null,
-        "ir_override": null
-      },
-      "best_timing": [
-        0.00559999980032444,
-        0.0054720002226531506,
-        0.005760000087320805
+        0.005632000043988228,
+        0.005375999957323074,
+        0.005888000130653381
       ]
     }
   }

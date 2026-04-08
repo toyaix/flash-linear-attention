@@ -118,7 +118,7 @@ def chunk_fwd_kernel_o(
     b_o = b_o * scale + tl.dot(b_A.to(b_v.dtype), b_v) * scale
     tl.store(p_o, b_o.to(p_o.dtype.element_ty), boundary_check=(0, 1))
 
-
+import triton_runner
 @triton.heuristics({
     'USE_G': lambda args: args['g'] is not None,
     'USE_G_GAMMA': lambda args: args['g_gamma'] is not None,
@@ -134,7 +134,7 @@ def chunk_fwd_kernel_o(
     key=['H', 'K', 'V', 'BT', 'BK', 'BV', 'USE_G', 'USE_G_GAMMA', 'USE_DW'],
     **autotune_cache_kwargs,
 )
-@triton.jit(do_not_specialize=['T'])
+@triton_runner.jit(do_not_specialize=['T'])
 def chunk_bwd_kernel_dqkwg(
     q,
     k,
@@ -683,6 +683,8 @@ def chunk_bwd_dqkwg(
         BT=BT,
         BK=BK,
         BV=BV,
+        # use triton v3.3 cubin to avoid bug
+        cubin_dir="./.cache/fla_h20_issue_640_export/triton_3_3"
     )
 
     if dg is not None:
